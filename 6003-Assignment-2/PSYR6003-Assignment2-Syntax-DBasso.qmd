@@ -1,0 +1,115 @@
+---
+title: "PSYR6003 Assignment 2"
+author: "Daniel Basso"
+format: docx
+---
+
+```{r}
+#Load Packages 
+library(tidyverse) 
+library(flexplot) 
+library(haven) 
+library(foreign) 
+library(patchwork) 
+library(MASS) 
+library(quarto) 
+library(apaTables)
+```
+
+```{r}
+#Load in Dataset as an object called "mydata" 
+mydata <- read_spss("PSYR6003.A2.sav")
+```
+
+```{r}
+#View & Inspect dataset 
+summary(mydata) 
+view(mydata)
+```
+
+```{r}
+#reverse coding item tipm.CONS2.3y before scale totalling
+#Recoding sex to be a factor
+#Filtering to only include male and female participants as the other category (n=1) is too small to consider 
+#compute scales (mean) totals for socially prescribed perfectionism, conscientiousness, and negative affect  
+#subsetting adjustments into object called "clean"  
+#any totals with missing values were given NA as a total  
+#Omitting Missing values
+
+mydata$tipm.CONS2.3y.REV = (abs(mydata$tipm.CONS2.3y - 8))   
+clean <- mydata %>%     
+  mutate(RespondentId = RespondentId,                          
+         sex = fct_recode(sex, NULL = "Other (specify)", "0" = "Female", "1" = "Male"),     
+         SPP.mean = rowMeans(dplyr::select(mydata, mps.SPP1.3y:mps.SPP5.3y), na.rm = F),  
+         NEG.AFF.mean = rowMeans(dplyr::select(mydata, guilt1.3y:host3.3y), na.rm = F),     
+         CONS.mean = rowMeans(dplyr::select(mydata, tipm.CONS1.3y, tipm.CONS2.3y.REV), 
+                              na.rm = F),                         
+         .keep = "used") %>%        
+  filter(sex != "Other (specify)") %>%   
+  na.omit()
+```
+
+```{r}
+#bivariate correlations and descriptive stats 
+correlation <- tibble(clean$SPP.mean, clean$NEG.AFF.mean, clean$CONS.mean, as.numeric(clean$sex))
+apa.cor.table(correlation)
+```
+
+```{r}
+#Visualizing Univariate Distributions 
+flexplot(SPP.mean~1, data=clean) 
+flexplot(NEG.AFF.mean~1, data=clean) 
+flexplot(sex~1, data=clean) 
+flexplot(CONS.mean~1, data=clean)
+```
+
+```{r}
+#Summary Stats of Variables in Clean 
+summary(clean)
+```
+
+```{r}
+#Model visualization 
+flexplot(NEG.AFF.mean ~ SPP.mean + CONS.mean | sex, data=clean, method = "lm")
+```
+
+```{r}
+#Visualizing diagnostics 
+base <- lm(NEG.AFF.mean ~ SPP.mean + CONS.mean + sex, data=clean)  
+visualize(base, plot = "model")  
+visualize(base, plot = "residuals")
+```
+
+```{r}
+
+#Robust Model 
+robust <- rlm(NEG.AFF.mean ~ SPP.mean + CONS.mean + sex, data = clean)  
+visualize(robust, plot="model")  
+visualize(robust, plot="residuals")
+```
+
+```{r}
+#Quadratic sensitivity analysis 
+flexplot(NEG.AFF.mean ~ SPP.mean + CONS.mean | sex, data = clean, method = "quadratic")   
+quadratic = lm(NEG.AFF.mean~ SPP.mean + CONS.mean + sex + I(SPP.mean^2) + I(CONS.mean^2), data=clean)   
+visualize(quadratic, plot="residuals")
+```
+
+```{r}
+#Model Estimates 
+estimates(base) 
+estimates(quadratic)
+```
+
+```{r}
+#full and reduced 
+full <- lm(NEG.AFF.mean~ SPP.mean + CONS.mean + sex,                      data=clean)   
+reduced <- lm(NEG.AFF.mean~  CONS.mean + sex, data=clean)  
+model.comparison(full, reduced)
+
+estimates(full)
+estimates(reduced)
+
+summary(full)
+summary(reduced)
+```
